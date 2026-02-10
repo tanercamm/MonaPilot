@@ -1,0 +1,57 @@
+### Variables
+@baseUrl = https://localhost:5001/api/productrequest
+
+### Test 1: Electronics - Bütçe: 900
+POST {{baseUrl}}/request
+Content-Type: application/json
+
+{
+  "personName": "Fatih Kaplan",
+  "budget": 900,
+  "productType": "Electronics"
+}
+
+### Test 2: Electronics - Bütçe: 500
+POST {{baseUrl}}/request
+Content-Type: application/json
+
+{
+  "personName": "Ayþe Demir",
+  "budget": 500,
+  "productType": "Electronics"
+}
+
+### Test 3: Furniture - Bütçe: 350
+POST {{baseUrl}}/request
+Content-Type: application/json
+
+{
+  "personName": "Mert Güzel",
+  "budget": 350,
+  "productType": "Furniture"
+}
+
+### Test 4: Books - Bütçe: 100
+POST {{baseUrl}}/request
+Content-Type: application/json
+
+{
+  "personName": "Elif Yavaþ",
+  "budget": 100,
+  "productType": "Books"
+}
+
+### Test 5: Talep Detaylarý Görüntüle
+GET {{baseUrl}}/1
+
+### Test 6: Tüm Talepleri Listele
+GET {{baseUrl}}/all
+
+### Test 7: TÜM ACTIVITY LOG'LAR ? YENÝ
+GET {{baseUrl}}/logs/all
+
+### Test 8: KÝÞÝYE AÝT LOG'LAR ? YENÝ
+GET {{baseUrl}}/logs/person/Fatih%20Kaplan
+
+### Test 9: Baþka Kiþi Log'larý ? YENÝ
+GET {{baseUrl}}/logs/person/Ayþe%20Demir

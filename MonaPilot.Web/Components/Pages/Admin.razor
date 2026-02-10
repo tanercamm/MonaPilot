@@ -1,0 +1,214 @@
+@page "/admin"
+@using System.Net.Http.Json
+@inject HttpClient Http
+@inject NavigationManager Nav
+
+<PageTitle>MonaPilot - Admin Panel</PageTitle>
+
+<div class="admin-panel">
+    <div class="header">
+        <h1>?? Admin Panel</h1>
+        <button @onclick="GoBack" class="btn-back">? Back to Dashboard</button>
+    </div>
+
+    <div class="admin-grid">
+        <div class="admin-card">
+            <h2>?? Product Management</h2>
+            
+            <div class="add-product">
+                <h3>Add New Product</h3>
+                <div class="form">
+                    <input type="text" @bind="newProduct.Name" placeholder="Product Name" />
+                    <select @bind="newProduct.Type">
+                        <option>Electronics</option>
+                        <option>Furniture</option>
+                        <option>Books</option>
+                    </select>
+                    <input type="number" @bind="newProduct.Price" placeholder="Price" />
+                    <input type="number" @bind="newProduct.Stock" placeholder="Stock" />
+                    <button @onclick="AddProduct" class="btn-primary">? Add Product</button>
+                </div>
+            </div>
+
+            @if (products.Count > 0)
+            {
+                <table class="products-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Type</th>
+                            <th>Price</th>
+                            <th>Stock</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var product in products)
+                        {
+                            <tr>
+                                <td>@product.Name</td>
+                                <td>@product.Type</td>
+                                <td>?@product.Price</td>
+                                <td>@product.Stock</td>
+                                <td>
+                                    <button @onclick="() => DeleteProduct(product.Id)" class="btn-small btn-danger">Delete</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+
+        <div class="admin-card">
+            <h2>?? Analytics</h2>
+            <div class="stats">
+                <div class="stat">
+                    <p>Total Requests</p>
+                    <p class="number">@totalRequests</p>
+                </div>
+                <div class="stat">
+                    <p>Success Rate</p>
+                    <p class="number">@(totalRequests > 0 ? Math.Round((double)successCount / totalRequests * 100) : 0)%</p>
+                </div>
+                <div class="stat">
+                    <p>Avg Budget</p>
+                    <p class="number">?@(averageBudget > 0 ? Math.Round(averageBudget) : 0)</p>
+                </div>
+                <div class="stat">
+                    <p>Total Revenue</p>
+                    <p class="number">?@totalRevenue</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="admin-card">
+            <h2>?? System Settings</h2>
+            <div class="settings">
+                <div class="setting">
+                    <label>RabbitMQ Host</label>
+                    <input type="text" value="localhost" readonly />
+                </div>
+                <div class="setting">
+                    <label>Database</label>
+                    <input type="text" value="SQLite" readonly />
+                </div>
+                <div class="setting">
+                    <label>API Version</label>
+                    <input type="text" value="1.0.0" readonly />
+                </div>
+                <button class="btn-primary">?? Save Settings</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<Product> products = new();
+    private Product newProduct = new();
+    private int totalRequests = 0;
+    private int successCount = 0;
+    private decimal averageBudget = 0;
+    private decimal totalRevenue = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            // Mock products
+            products = new()
+            {
+                new() { Id = 1, Name = "Laptop Deluxe", Type = "Electronics", Price = 1200, Stock = 5 },
+                new() { Id = 2, Name = "Smartphone Pro", Type = "Electronics", Price = 800, Stock = 10 },
+                new() { Id = 3, Name = "Office Chair", Type = "Furniture", Price = 300, Stock = 15 },
+            };
+
+            // Load analytics
+            var response = await Http.GetAsync("api/productrequest/logs/all");
+            if (response.IsSuccessStatusCode)
+            {
+                var logs = await response.Content.ReadAsAsync<List<ActivityLog>>();
+                totalRequests = logs.Count;
+                successCount = logs.Count(l => l.Status == "Success");
+                totalRevenue = logs.Sum(l => l.ProductPrice);
+                averageBudget = totalRequests > 0 ? logs.Average(l => (decimal?)l.ProductPrice) ?? 0 : 0;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading data: {ex.Message}");
+        }
+    }
+
+    private async Task AddProduct()
+    {
+        // Mock add product
+        newProduct.Id = products.Max(p => p.Id) + 1;
+        products.Add(newProduct);
+        newProduct = new();
+    }
+
+    private void DeleteProduct(int id)
+    {
+        products.RemoveAll(p => p.Id == id);
+    }
+
+    private void GoBack()
+    {
+        Nav.NavigateTo("/");
+    }
+
+    public class Product
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public string Type { get; set; }
+        public decimal Price { get; set; }
+        public int Stock { get; set; }
+    }
+
+    public class ActivityLog
+    {
+        public int Id { get; set; }
+        public string PersonName { get; set; }
+        public decimal ProductPrice { get; set; }
+        public string Status { get; set; }
+    }
+}
+
+<style>
+.admin-panel { padding: 20px; }
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+.admin-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+.admin-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+.admin-card h2 { margin-top: 0; color: #333; }
+
+.add-product { margin-bottom: 30px; padding-bottom: 30px; border-bottom: 1px solid #eee; }
+.form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+input, select { padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+
+.products-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+.products-table th, .products-table td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+.products-table th { background: #f0f0f0; }
+
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
+.stat { background: #f9f9f9; padding: 15px; border-radius: 8px; text-align: center; }
+.stat p { margin: 0; color: #666; }
+.stat .number { font-size: 24px; font-weight: bold; color: #0066cc; }
+
+.settings { display: grid; gap: 15px; }
+.setting { display: grid; grid-template-columns: 200px 1fr; gap: 10px; align-items: center; }
+.setting input { padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+
+.btn-primary { background: #0066cc; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; }
+.btn-primary:hover { background: #0052a3; }
+.btn-back { background: #666; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; }
+.btn-small { padding: 5px 10px; font-size: 12px; }
+.btn-danger { background: #cc0000; color: white; border: none; border-radius: 4px; cursor: pointer; }
+.btn-danger:hover { background: #aa0000; }
+</style>

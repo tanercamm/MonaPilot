@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  rabbitmq:
+    image: rabbitmq:4-management
+    container_name: monapilot-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: rabbitmq-diagnostics ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: MonaPilot.API/Dockerfile
+    container_name: monapilot-api
+    ports:
+      - "5001:5001"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - RabbitMq__Host=rabbitmq
+    depends_on:
+      - rabbitmq
+
+  web:
+    build:
+      context: .
+      dockerfile: MonaPilot.Web/Dockerfile
+    container_name: monapilot-web
+    ports:
+      - "5281:80"
+    depends_on:
+      - api
+
+  console:
+    build:
+      context: .
+      dockerfile: MonaPilot.Console/Dockerfile
+    container_name: monapilot-console
+    environment:
+      - RabbitMq__Host=rabbitmq
+    depends_on:
+      - rabbitmq
+
+volumes:
+  rabbitmq_data:
