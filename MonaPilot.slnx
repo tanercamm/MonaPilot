@@ -1,4 +1,6 @@
 <Solution>
   <Project Path="MonaPilot.API/MonaPilot.API.csproj" />
   <Project Path="MonaPilot.Console/MonaPilot.Console.csproj" />
+  <Project Path="MonaPilot.Web/MonaPilot.Web.csproj" />
+  <Project Path="MonaPilot.Tests/MonaPilot.Tests.csproj" />
 </Solution>
