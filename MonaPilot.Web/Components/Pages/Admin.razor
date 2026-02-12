@@ -132,7 +132,7 @@
             var response = await Http.GetAsync("api/productrequest/logs/all");
             if (response.IsSuccessStatusCode)
             {
-                var logs = await response.Content.ReadAsAsync<List<ActivityLog>>();
+                var logs = await response.Content.ReadFromJsonAsync<List<ActivityLog>>();
                 totalRequests = logs.Count;
                 successCount = logs.Count(l => l.Status == "Success");
                 totalRevenue = logs.Sum(l => l.ProductPrice);

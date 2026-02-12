@@ -2,6 +2,7 @@
 @using System.Net.Http.Json
 @inject HttpClient Http
 @inject NavigationManager Nav
+@inject Blazored.SessionStorage.ISessionStorageService SessionStorage
 
 <PageTitle>MonaPilot - Dashboard</PageTitle>
 
@@ -105,7 +106,7 @@
             
             if (response.IsSuccessStatusCode)
             {
-                logs = await response.Content.ReadAsAsync<List<ActivityLog>>();
+                logs = await response.Content.ReadFromJsonAsync<List<ActivityLog>>();
                 totalRequests = logs.Count;
                 completedRequests = logs.Count(l => l.Status == "Success");
                 totalSpent = logs.Sum(l => l.ProductPrice);
@@ -141,7 +142,7 @@
     private void Logout()
     {
         // Clear token
-        sessionStorage.RemoveItem("authToken");
+        SessionStorage.RemoveItemAsync("authToken");
         Nav.NavigateTo("/login");
     }
 

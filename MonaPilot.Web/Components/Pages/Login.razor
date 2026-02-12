@@ -2,7 +2,7 @@
 @using System.Net.Http.Json
 @inject HttpClient Http
 @inject NavigationManager Nav
-@inject SessionStorage SessionStorage
+@inject Blazored.SessionStorage.ISessionStorageService SessionStorage
 
 <PageTitle>MonaPilot - Login</PageTitle>
 
@@ -65,7 +65,7 @@
 
             if (response.IsSuccessStatusCode)
             {
-                var result = await response.Content.ReadAsAsync<LoginResponse>();
+                var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
                 
                 // Save token to session storage
                 await SessionStorage.SetItemAsync("authToken", result.Token);

@@ -1,8 +1,9 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using MonaPilot.API.Data;
 using MonaPilot.API.Services;
 using MonaPilot.API.Hubs;
 using RabbitMQ.Client;
+using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -29,7 +30,8 @@ builder.Services.AddAuthentication("Bearer")
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowBlazor", builder =>
-        builder.WithOrigins("http://localhost:5281", "https://localhost:5281")
+        builder.WithOrigins("http://localhost:5088", "https://localhost:5088",
+                            "http://localhost:5281", "https://localhost:5281")
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials());
@@ -71,6 +73,8 @@ builder.Services.AddSingleton<IConnection>(sp =>
 builder.Services.AddSingleton<IEventPublisher, RabbitMqEventPublisher>();
 builder.Services.AddSingleton<ILogPublisher, RabbitMqLogPublisher>();
 builder.Services.AddScoped<IActivityLogService, ActivityLogService>();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IUserService, UserService>();
 
 var app = builder.Build();
 
@@ -85,6 +89,7 @@ using (var scope = app.Services.CreateScope())
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.MapScalarApiReference();
 }
 
 app.UseHttpsRedirection();
