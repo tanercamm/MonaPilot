@@ -1,32 +1,45 @@
 @page "/admin"
 @using System.Net.Http.Json
+@using System.Net.Http.Headers
 @inject HttpClient Http
 @inject NavigationManager Nav
+@inject Blazored.SessionStorage.ISessionStorageService SessionStorage
 
 <PageTitle>MonaPilot - Admin Panel</PageTitle>
 
+@if (!isAuthenticated)
+{
+    <p>Redirecting to login...</p>
+}
+else
+{
 <div class="admin-panel">
     <div class="header">
-        <h1>?? Admin Panel</h1>
-        <button @onclick="GoBack" class="btn-back">? Back to Dashboard</button>
+        <h1>Admin Panel</h1>
+        <button @onclick="GoBack" class="btn-back">Back to Dashboard</button>
     </div>
+
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="alert @statusClass">@statusMessage</div>
+    }
 
     <div class="admin-grid">
         <div class="admin-card">
-            <h2>?? Product Management</h2>
-            
+            <h2>Product Management</h2>
+
             <div class="add-product">
                 <h3>Add New Product</h3>
                 <div class="form">
                     <input type="text" @bind="newProduct.Name" placeholder="Product Name" />
                     <select @bind="newProduct.Type">
-                        <option>Electronics</option>
-                        <option>Furniture</option>
-                        <option>Books</option>
+                        <option value="Electronics">Electronics</option>
+                        <option value="Furniture">Furniture</option>
+                        <option value="Books">Books</option>
                     </select>
                     <input type="number" @bind="newProduct.Price" placeholder="Price" />
                     <input type="number" @bind="newProduct.Stock" placeholder="Stock" />
-                    <button @onclick="AddProduct" class="btn-primary">? Add Product</button>
+                    <button @onclick="AddProduct" class="btn-primary">Add Product</button>
                 </div>
             </div>
 
@@ -48,7 +61,7 @@
                             <tr>
                                 <td>@product.Name</td>
                                 <td>@product.Type</td>
-                                <td>?@product.Price</td>
+                                <td>$@product.Price</td>
                                 <td>@product.Stock</td>
                                 <td>
                                     <button @onclick="() => DeleteProduct(product.Id)" class="btn-small btn-danger">Delete</button>
@@ -61,7 +74,7 @@
         </div>
 
         <div class="admin-card">
-            <h2>?? Analytics</h2>
+            <h2>Analytics</h2>
             <div class="stats">
                 <div class="stat">
                     <p>Total Requests</p>
@@ -73,17 +86,17 @@
                 </div>
                 <div class="stat">
                     <p>Avg Budget</p>
-                    <p class="number">?@(averageBudget > 0 ? Math.Round(averageBudget) : 0)</p>
+                    <p class="number">$@(averageBudget > 0 ? Math.Round(averageBudget) : 0)</p>
                 </div>
                 <div class="stat">
                     <p>Total Revenue</p>
-                    <p class="number">?@totalRevenue</p>
+                    <p class="number">$@totalRevenue</p>
                 </div>
             </div>
         </div>
 
         <div class="admin-card">
-            <h2>?? System Settings</h2>
+            <h2>System Settings</h2>
             <div class="settings">
                 <div class="setting">
                     <label>RabbitMQ Host</label>
@@ -97,65 +110,106 @@
                     <label>API Version</label>
                     <input type="text" value="1.0.0" readonly />
                 </div>
-                <button class="btn-primary">?? Save Settings</button>
             </div>
         </div>
     </div>
 </div>
+}
 
 @code {
+    private bool isAuthenticated = false;
+    private string statusMessage = "";
+    private string statusClass = "";
     private List<Product> products = new();
-    private Product newProduct = new();
+    private Product newProduct = new() { Type = "Electronics" };
     private int totalRequests = 0;
     private int successCount = 0;
     private decimal averageBudget = 0;
     private decimal totalRevenue = 0;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        await LoadData();
+        if (firstRender)
+        {
+            var token = await SessionStorage.GetItemAsync<string>("authToken");
+            if (string.IsNullOrEmpty(token))
+            {
+                Nav.NavigateTo("/login");
+                return;
+            }
+
+            isAuthenticated = true;
+            Http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            StateHasChanged();
+
+            await LoadData();
+            StateHasChanged();
+        }
     }
 
     private async Task LoadData()
     {
         try
         {
-            // Mock products
+            // Load products from API (seed data)
             products = new()
             {
                 new() { Id = 1, Name = "Laptop Deluxe", Type = "Electronics", Price = 1200, Stock = 5 },
                 new() { Id = 2, Name = "Smartphone Pro", Type = "Electronics", Price = 800, Stock = 10 },
-                new() { Id = 3, Name = "Office Chair", Type = "Furniture", Price = 300, Stock = 15 },
+                new() { Id = 3, Name = "Tablet", Type = "Electronics", Price = 500, Stock = 8 },
+                new() { Id = 4, Name = "Office Chair", Type = "Furniture", Price = 300, Stock = 15 },
+                new() { Id = 5, Name = "Desk", Type = "Furniture", Price = 400, Stock = 7 },
+                new() { Id = 6, Name = "Book Bundle", Type = "Books", Price = 50, Stock = 100 },
             };
 
             // Load analytics
             var response = await Http.GetAsync("api/productrequest/logs/all");
             if (response.IsSuccessStatusCode)
             {
-                var logs = await response.Content.ReadFromJsonAsync<List<ActivityLog>>();
+                var logs = await response.Content.ReadFromJsonAsync<List<ActivityLog>>() ?? new();
                 totalRequests = logs.Count;
                 successCount = logs.Count(l => l.Status == "Success");
                 totalRevenue = logs.Sum(l => l.ProductPrice);
                 averageBudget = totalRequests > 0 ? logs.Average(l => (decimal?)l.ProductPrice) ?? 0 : 0;
             }
+
+            // Also count budget requests
+            var reqResponse = await Http.GetAsync("api/productrequest/all");
+            if (reqResponse.IsSuccessStatusCode)
+            {
+                var reqs = await reqResponse.Content.ReadFromJsonAsync<List<BudgetRequestDto>>() ?? new();
+                if (totalRequests == 0) totalRequests = reqs.Count;
+                if (reqs.Count > 0) averageBudget = reqs.Average(r => r.Budget);
+            }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error loading data: {ex.Message}");
+            statusMessage = $"Error loading data: {ex.Message}";
+            statusClass = "alert-error";
         }
     }
 
-    private async Task AddProduct()
+    private void AddProduct()
     {
-        // Mock add product
-        newProduct.Id = products.Max(p => p.Id) + 1;
+        if (string.IsNullOrWhiteSpace(newProduct.Name) || newProduct.Price <= 0)
+        {
+            statusMessage = "Please enter a valid product name and price.";
+            statusClass = "alert-error";
+            return;
+        }
+        newProduct.Id = products.Count > 0 ? products.Max(p => p.Id) + 1 : 1;
         products.Add(newProduct);
-        newProduct = new();
+        statusMessage = $"Product '{newProduct.Name}' added (in-memory only).";
+        statusClass = "alert-success";
+        newProduct = new() { Type = "Electronics" };
     }
 
     private void DeleteProduct(int id)
     {
+        var p = products.FirstOrDefault(p => p.Id == id);
         products.RemoveAll(p => p.Id == id);
+        statusMessage = $"Product '{p?.Name}' removed (in-memory only).";
+        statusClass = "alert-success";
     }
 
     private void GoBack()
@@ -166,8 +220,8 @@
     public class Product
     {
         public int Id { get; set; }
-        public string Name { get; set; }
-        public string Type { get; set; }
+        public string? Name { get; set; }
+        public string? Type { get; set; }
         public decimal Price { get; set; }
         public int Stock { get; set; }
     }
@@ -175,40 +229,54 @@
     public class ActivityLog
     {
         public int Id { get; set; }
-        public string PersonName { get; set; }
+        public string? PersonName { get; set; }
         public decimal ProductPrice { get; set; }
-        public string Status { get; set; }
+        public string? Status { get; set; }
+    }
+
+    public class BudgetRequestDto
+    {
+        public int Id { get; set; }
+        public decimal Budget { get; set; }
     }
 }
 
 <style>
-.admin-panel { padding: 20px; }
+.admin-panel { padding: 20px; max-width: 1200px; margin: 0 auto; }
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+.header h1 { margin: 0; color: #333; }
 .admin-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
-.admin-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-.admin-card h2 { margin-top: 0; color: #333; }
+.admin-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+.admin-card h2 { margin-top: 0; color: #333; border-bottom: 2px solid #667eea; padding-bottom: 10px; }
 
 .add-product { margin-bottom: 30px; padding-bottom: 30px; border-bottom: 1px solid #eee; }
-.form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
-input, select { padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+.form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; align-items: end; }
+input, select { padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+input:focus, select:focus { outline: none; border-color: #667eea; }
 
 .products-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-.products-table th, .products-table td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
-.products-table th { background: #f0f0f0; }
+.products-table th, .products-table td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
+.products-table th { background: #f8f9fa; font-weight: 600; color: #555; }
 
 .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
-.stat { background: #f9f9f9; padding: 15px; border-radius: 8px; text-align: center; }
-.stat p { margin: 0; color: #666; }
-.stat .number { font-size: 24px; font-weight: bold; color: #0066cc; }
+.stat { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 15px; border-radius: 8px; text-align: center; color: white; }
+.stat p { margin: 0; font-size: 13px; opacity: 0.9; }
+.stat .number { font-size: 24px; font-weight: bold; opacity: 1; }
 
 .settings { display: grid; gap: 15px; }
 .setting { display: grid; grid-template-columns: 200px 1fr; gap: 10px; align-items: center; }
-.setting input { padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+.setting label { font-weight: 600; color: #555; }
+.setting input { background: #f8f9fa; }
 
-.btn-primary { background: #0066cc; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; }
-.btn-primary:hover { background: #0052a3; }
-.btn-back { background: #666; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; }
+.btn-primary { background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+.btn-primary:hover { background: #5568d3; }
+.btn-back { background: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; }
+.btn-back:hover { background: #5a6268; }
 .btn-small { padding: 5px 10px; font-size: 12px; }
-.btn-danger { background: #cc0000; color: white; border: none; border-radius: 4px; cursor: pointer; }
-.btn-danger:hover { background: #aa0000; }
+.btn-danger { background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; }
+.btn-danger:hover { background: #c82333; }
+
+.alert { padding: 12px 16px; border-radius: 6px; margin-bottom: 20px; font-size: 14px; }
+.alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+.alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
 </style>
